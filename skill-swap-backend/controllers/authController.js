@@ -1,25 +1,20 @@
-const jwt = require('jsonwebtoken');
+const supabase = require('../utils/supabaseClient');
 const { User } = require('../models');
 const { Op } = require('sequelize');
 
-// Generate JWT token
-const generateToken = (userId) => {
-    return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
-};
 
-// Register new user
+
+// Register new user with Supabase
 const register = async (req, res) => {
     try {
         const { name, email, password, location, skillsOffered, skillsWanted, availability, bio } = req.body;
 
-        // Validation
         if (!name || !email || !password) {
             return res.status(400).json({
                 success: false,
                 message: 'Name, email, and password are required'
             });
         }
-
         if (password.length < 6) {
             return res.status(400).json({
                 success: false,
@@ -27,35 +22,40 @@ const register = async (req, res) => {
             });
         }
 
-        // Check if user already exists
-        const existingUser = await User.findOne({ where: { email } });
-        if (existingUser) {
+        // Register user in Supabase
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: { name }
+            }
+        });
+        if (error) {
             return res.status(400).json({
                 success: false,
-                message: 'User with this email already exists'
+                message: error.message
             });
         }
 
-        // Create new user
-        const user = await User.create({
-            name,
-            email,
-            hashedPassword: password, // Will be hashed by the model
-            location,
-            skillsOffered: skillsOffered || [],
-            skillsWanted: skillsWanted || [],
-            availability,
-            bio
-        });
-
-        // Generate token
-        const token = generateToken(user.id);
+        // Sync with local DB
+        let user = await User.findOne({ where: { email } });
+        if (!user) {
+            user = await User.create({
+                name,
+                email,
+                hashedPassword: '',
+                location,
+                skillsOffered: skillsOffered || [],
+                skillsWanted: skillsWanted || [],
+                availability,
+                bio
+            });
+        }
 
         res.status(201).json({
             success: true,
-            message: 'User registered successfully',
+            message: 'User registered successfully. Please check your email to confirm your account.',
             data: {
-                token,
                 user: user.getPublicProfile()
             }
         });
@@ -68,53 +68,39 @@ const register = async (req, res) => {
     }
 };
 
-// Login user
+// Login user with Supabase
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
-
-        // Validation
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
                 message: 'Email and password are required'
             });
         }
-
-        // Find user
-        const user = await User.findOne({ where: { email } });
+        // Login with Supabase
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+            return res.status(401).json({
+                success: false,
+                message: error.message
+            });
+        }
+        // Sync with local DB
+        let user = await User.findOne({ where: { email } });
         if (!user) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password'
+            user = await User.create({
+                name: data.user.user_metadata?.name || email,
+                email,
+                hashedPassword: '',
+                isPublic: true
             });
         }
-
-        // Check if user is banned
-        if (user.isBanned) {
-            return res.status(403).json({
-                success: false,
-                message: 'Account has been banned'
-            });
-        }
-
-        // Validate password
-        const isValidPassword = await user.validatePassword(password);
-        if (!isValidPassword) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password'
-            });
-        }
-
-        // Generate token
-        const token = generateToken(user.id);
-
-        res.json({
+        res.status(200).json({
             success: true,
             message: 'Login successful',
             data: {
-                token,
+                access_token: data.session.access_token,
                 user: user.getPublicProfile()
             }
         });
@@ -126,6 +112,7 @@ const login = async (req, res) => {
         });
     }
 };
+// (Legacy login code removed; see above for new Supabase login implementation)
 
 // Get current user profile
 const getProfile = async (req, res) => {

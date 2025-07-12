@@ -9,7 +9,7 @@ const {
 } = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/authMiddleware');
 
-// Public routes
+// Public routes (handled by Supabase)
 router.post('/register', register);
 router.post('/login', login);
 

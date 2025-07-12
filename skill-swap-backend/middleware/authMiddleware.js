@@ -1,7 +1,7 @@
-const jwt = require('jsonwebtoken');
+const supabase = require('../utils/supabaseClient');
 const { User } = require('../models');
 
-// Verify JWT token
+// Supabase session verification
 const authenticateToken = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
@@ -14,42 +14,36 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        // Get user from database
-        const user = await User.findByPk(decoded.userId);
-
-        if (!user) {
+        // Validate token with Supabase
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (error || !user) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid token - user not found'
+                message: 'Invalid or expired token'
             });
         }
 
-        if (user.isBanned) {
+        // Optionally, sync with local User DB
+        let localUser = await User.findOne({ where: { email: user.email } });
+        if (!localUser) {
+            // Optionally, auto-create user in local DB
+            localUser = await User.create({
+                name: user.user_metadata?.name || user.email,
+                email: user.email,
+                hashedPassword: '',
+                isPublic: true
+            });
+        }
+        if (localUser.isBanned) {
             return res.status(403).json({
                 success: false,
                 message: 'Account has been banned'
             });
         }
-
-        req.user = user;
+        req.user = localUser;
         next();
     } catch (error) {
-        if (error.name === 'JsonWebTokenError') {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid token'
-            });
-        }
-        if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({
-                success: false,
-                message: 'Token expired'
-            });
-        }
-
-        console.error('Auth middleware error:', error);
+        console.error('Supabase auth middleware error:', error);
         return res.status(500).json({
             success: false,
             message: 'Server error during authentication'
@@ -89,16 +83,23 @@ const optionalAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.split(' ')[1];
-
         if (token) {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            const user = await User.findByPk(decoded.userId);
-
-            if (user && !user.isBanned) {
-                req.user = user;
+            const { data: { user }, error } = await supabase.auth.getUser(token);
+            if (!error && user) {
+                let localUser = await User.findOne({ where: { email: user.email } });
+                if (!localUser) {
+                    localUser = await User.create({
+                        name: user.user_metadata?.name || user.email,
+                        email: user.email,
+                        hashedPassword: '',
+                        isPublic: true
+                    });
+                }
+                if (!localUser.isBanned) {
+                    req.user = localUser;
+                }
             }
         }
-
         next();
     } catch (error) {
         // Ignore authentication errors for optional auth
