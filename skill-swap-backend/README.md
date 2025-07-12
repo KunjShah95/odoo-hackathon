@@ -1,6 +1,6 @@
 # Skill Swap Platform - Backend
 
-A robust backend API for the Skill Swap Platform built with Node.js, Express, and PostgreSQL.
+A robust backend API for the Skill Swap Platform built with Node.js, Express, and MySQL.
 
 ## Features
 
@@ -15,7 +15,7 @@ A robust backend API for the Skill Swap Platform built with Node.js, Express, an
 
 - **Runtime**: Node.js
 - **Framework**: Express.js
-- **Database**: PostgreSQL with Sequelize ORM
+- **Database**: MySQL with Sequelize ORM
 - **Authentication**: JWT tokens
 - **Security**: Helmet, CORS, Rate limiting
 - **Validation**: Sequelize validators
@@ -71,10 +71,10 @@ skill-swap-backend/
    
    # Database
    DB_HOST=localhost
-   DB_PORT=5432
+   DB_PORT=3306
    DB_NAME=skill_swap_db
-   DB_USER=your_db_user
-   DB_PASSWORD=your_db_password
+   DB_USER=root
+   DB_PASSWORD=your_mysql_password
    
    # JWT
    JWT_SECRET=your_jwt_secret_key
@@ -84,10 +84,12 @@ skill-swap-backend/
    ADMIN_PASSWORD=admin123
    ```
 
-4. **Set up PostgreSQL database**
+4. **Set up MySQL database**
    ```sql
    CREATE DATABASE skill_swap_db;
    ```
+
+   See `MYSQL-SETUP.md` for detailed MySQL installation guide.
 
 5. **Start the server**
    ```bash

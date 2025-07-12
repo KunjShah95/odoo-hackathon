@@ -1,0 +1,19 @@
+# Docker setup for PostgreSQL
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    container_name: skill_swap_postgres
+    environment:
+      POSTGRES_DB: skill_swap_db
+      POSTGRES_USER: skillswap_user
+      POSTGRES_PASSWORD: skillswap_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

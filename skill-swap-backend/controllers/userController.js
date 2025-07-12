@@ -26,20 +26,20 @@ const getAllUsers = async (req, res) => {
     // Search filters
     if (search) {
       whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { bio: { [Op.iLike]: `%${search}%` } }
+        { name: { [Op.like]: `%${search}%` } },
+        { bio: { [Op.like]: `%${search}%` } }
       ];
     }
 
     if (skill) {
       whereClause[Op.or] = [
-        { skillsOffered: { [Op.contains]: [skill] } },
-        { skillsWanted: { [Op.contains]: [skill] } }
+        { skillsOffered: { [Op.like]: `%"${skill}"%` } },
+        { skillsWanted: { [Op.like]: `%"${skill}"%` } }
       ];
     }
 
     if (location) {
-      whereClause.location = { [Op.iLike]: `%${location}%` };
+      whereClause.location = { [Op.like]: `%${location}%` };
     }
 
     const { count, rows: users } = await User.findAndCountAll({
@@ -148,7 +148,7 @@ const searchUsersBySkill = async (req, res) => {
 
     const users = await User.findAll({
       where: {
-        [skillField]: { [Op.contains]: [skill] },
+        [skillField]: { [Op.like]: `%"${skill}"%` },
         isPublic: true,
         isBanned: false
       },
