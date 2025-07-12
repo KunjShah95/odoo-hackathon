@@ -1,5 +1,4 @@
-const { User, Swap, Feedback } = require('../models');
-const { Op } = require('sequelize');
+const supabase = require('../utils/supabaseClient');
 
 // Get all users (with filtering and search)
 const getAllUsers = async (req, res) => {
@@ -12,61 +11,54 @@ const getAllUsers = async (req, res) => {
       limit = 10,
       includePrivate = false
     } = req.query;
-
-    const offset = (page - 1) * limit;
-    const whereClause = {
-      isBanned: false
-    };
-
+    const from = (page - 1) * limit;
+    const to = from + parseInt(limit) - 1;
+    let query = supabase.from('users').select('*', { count: 'exact' });
     // Only include public profiles unless admin
-    if (!includePrivate || !req.user?.isAdmin) {
-      whereClause.isPublic = true;
+    if (!includePrivate || !req.user?.is_admin) {
+      query = query.eq('is_public', true);
     }
-
-    // Search filters
+    query = query.eq('is_banned', false);
     if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { bio: { [Op.like]: `%${search}%` } }
-      ];
+      query = query.ilike('name', `%${search}%`);
     }
-
     if (skill) {
-      whereClause[Op.or] = [
-        { skillsOffered: { [Op.like]: `%"${skill}"%` } },
-        { skillsWanted: { [Op.like]: `%"${skill}"%` } }
-      ];
+      query = query.or(`skills_offered.cs.{"${skill}"},skills_wanted.cs.{"${skill}"}`);
     }
-
     if (location) {
-      whereClause.location = { [Op.like]: `%${location}%` };
+      query = query.ilike('location', `%${location}%`);
     }
-
-    const { count, rows: users } = await User.findAndCountAll({
-      where: whereClause,
-      limit: parseInt(limit),
-      offset,
-      order: [['createdAt', 'DESC']],
-      attributes: { exclude: ['hashedPassword'] }
-    });
-
+    query = query.range(from, to).order('created_at', { ascending: false });
+    const { data: users, error, count } = await query;
+    if (error) {
+      console.error('Supabase getAllUsers error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching users',
+        error: { code: error.code, details: error.message },
+        requestId: req.id || undefined
+      });
+    }
     res.json({
       success: true,
       data: {
-        users: users.map(user => user.getPublicProfile()),
+        users,
         pagination: {
           total: count,
           page: parseInt(page),
           pages: Math.ceil(count / limit),
           limit: parseInt(limit)
         }
-      }
+      },
+      requestId: req.id || undefined
     });
   } catch (error) {
-    console.error('Get all users error:', error);
+    console.error('Get all users error:', { error, path: req.path, body: req.body });
     res.status(500).json({
       success: false,
-      message: 'Server error fetching users'
+      message: 'Server error fetching users',
+      error: { code: error.code || 'INTERNAL_ERROR', details: error.message },
+      requestId: req.id || undefined
     });
   }
 };
@@ -75,59 +67,46 @@ const getAllUsers = async (req, res) => {
 const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-
-    const user = await User.findByPk(id, {
-      attributes: { exclude: ['hashedPassword'] },
-      include: [
-        {
-          model: Feedback,
-          as: 'receivedFeedback',
-          include: [
-            {
-              model: User,
-              as: 'rater',
-              attributes: ['id', 'name']
-            }
-          ]
-        }
-      ]
-    });
-
-    if (!user) {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error || !user) {
+      console.error('Supabase getUserById error:', error);
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
+        error: { code: error?.code || 'NOT_FOUND', details: error?.message },
+        requestId: req.id || undefined
       });
     }
-
-    if (user.isBanned) {
+    if (user.is_banned) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
+        requestId: req.id || undefined
       });
     }
-
-    // Check if profile is private and requester is not the owner or admin
-    if (!user.isPublic &&
-      (!req.user || (req.user.id !== user.id && !req.user.isAdmin))) {
+    if (!user.is_public && (!req.user || (req.user.id !== user.id && !req.user.is_admin))) {
       return res.status(403).json({
         success: false,
-        message: 'This profile is private'
+        message: 'This profile is private',
+        requestId: req.id || undefined
       });
     }
-
     res.json({
       success: true,
-      data: {
-        user: user.getPublicProfile(),
-        feedback: user.receivedFeedback
-      }
+      data: { user },
+      requestId: req.id || undefined
     });
   } catch (error) {
-    console.error('Get user by ID error:', error);
+    console.error('Get user by ID error:', { error, path: req.path, body: req.body });
     res.status(500).json({
       success: false,
-      message: 'Server error fetching user'
+      message: 'Server error fetching user',
+      error: { code: error.code || 'INTERNAL_ERROR', details: error.message },
+      requestId: req.id || undefined
     });
   }
 };
@@ -136,38 +115,46 @@ const getUserById = async (req, res) => {
 const searchUsersBySkill = async (req, res) => {
   try {
     const { skill, type = 'offered' } = req.query;
-
     if (!skill) {
       return res.status(400).json({
         success: false,
-        message: 'Skill parameter is required'
+        message: 'Skill parameter is required',
+        error: { code: 'VALIDATION_ERROR' },
+        requestId: req.id || undefined
       });
     }
-
-    const skillField = type === 'offered' ? 'skillsOffered' : 'skillsWanted';
-
-    const users = await User.findAll({
-      where: {
-        [skillField]: { [Op.like]: `%"${skill}"%` },
-        isPublic: true,
-        isBanned: false
-      },
-      attributes: { exclude: ['hashedPassword'] },
-      order: [['rating', 'DESC']]
-    });
-
+    const skillField = type === 'offered' ? 'skills_offered' : 'skills_wanted';
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('*')
+      .contains(skillField, [skill])
+      .eq('is_public', true)
+      .eq('is_banned', false)
+      .order('rating', { ascending: false });
+    if (error) {
+      console.error('Supabase searchUsersBySkill error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error searching users',
+        error: { code: error.code, details: error.message },
+        requestId: req.id || undefined
+      });
+    }
     res.json({
       success: true,
       data: {
-        users: users.map(user => user.getPublicProfile()),
+        users,
         searchCriteria: { skill, type }
-      }
+      },
+      requestId: req.id || undefined
     });
   } catch (error) {
-    console.error('Search users by skill error:', error);
+    console.error('Search users by skill error:', { error, path: req.path, body: req.body });
     res.status(500).json({
       success: false,
-      message: 'Server error searching users'
+      message: 'Server error searching users',
+      error: { code: error.code || 'INTERNAL_ERROR', details: error.message },
+      requestId: req.id || undefined
     });
   }
 };
@@ -175,20 +162,20 @@ const searchUsersBySkill = async (req, res) => {
 // Get user statistics (for admin)
 const getUserStats = async (req, res) => {
   try {
-    const totalUsers = await User.count();
-    const activeUsers = await User.count({ where: { isBanned: false } });
-    const bannedUsers = await User.count({ where: { isBanned: true } });
-    const publicProfiles = await User.count({
-      where: { isPublic: true, isBanned: false }
-    });
-
-    const recentUsers = await User.findAll({
-      where: { isBanned: false },
-      order: [['createdAt', 'DESC']],
-      limit: 5,
-      attributes: ['id', 'name', 'email', 'createdAt']
-    });
-
+    const { count: totalUsers, error: totalError } = await supabase.from('users').select('*', { count: 'exact', head: true });
+    const { count: activeUsers, error: activeError } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_banned', false);
+    const { count: bannedUsers, error: bannedError } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_banned', true);
+    const { count: publicProfiles, error: publicError } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_public', true).eq('is_banned', false);
+    const { data: recentUsers, error: recentError } = await supabase.from('users').select('id, name, email, created_at').eq('is_banned', false).order('created_at', { ascending: false }).limit(5);
+    if (totalError || activeError || bannedError || publicError || recentError) {
+      console.error('Supabase getUserStats error:', { totalError, activeError, bannedError, publicError, recentError });
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching user statistics',
+        error: { code: 'STATS_ERROR' },
+        requestId: req.id || undefined
+      });
+    }
     res.json({
       success: true,
       data: {
@@ -199,13 +186,16 @@ const getUserStats = async (req, res) => {
           public: publicProfiles
         },
         recentUsers
-      }
+      },
+      requestId: req.id || undefined
     });
   } catch (error) {
-    console.error('Get user stats error:', error);
+    console.error('Get user stats error:', { error, path: req.path, body: req.body });
     res.status(500).json({
       success: false,
-      message: 'Server error fetching user statistics'
+      message: 'Server error fetching user statistics',
+      error: { code: error.code || 'INTERNAL_ERROR', details: error.message },
+      requestId: req.id || undefined
     });
   }
 };
@@ -215,38 +205,58 @@ const toggleUserBan = async (req, res) => {
   try {
     const { id } = req.params;
     const { banned, reason } = req.body;
-
-    const user = await User.findByPk(id);
-    if (!user) {
+    // Fetch user
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error || !user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
+        error: { code: error?.code || 'NOT_FOUND', details: error?.message },
+        requestId: req.id || undefined
       });
     }
-
-    if (user.isAdmin) {
+    if (user.is_admin) {
       return res.status(403).json({
         success: false,
-        message: 'Cannot ban admin users'
+        message: 'Cannot ban admin users',
+        requestId: req.id || undefined
       });
     }
-
-    await user.update({ isBanned: banned });
-
+    // Update ban status
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ is_banned: banned })
+      .eq('id', id);
+    if (updateError) {
+      console.error('Supabase toggleUserBan error:', updateError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error updating user ban status',
+        error: { code: updateError.code, details: updateError.message },
+        requestId: req.id || undefined
+      });
+    }
     res.json({
       success: true,
       message: `User ${banned ? 'banned' : 'unbanned'} successfully`,
       data: {
-        user: user.getPublicProfile(),
+        user: { ...user, is_banned: banned },
         action: banned ? 'banned' : 'unbanned',
         reason
-      }
+      },
+      requestId: req.id || undefined
     });
   } catch (error) {
-    console.error('Toggle user ban error:', error);
+    console.error('Toggle user ban error:', { error, path: req.path, body: req.body });
     res.status(500).json({
       success: false,
-      message: 'Server error updating user ban status'
+      message: 'Server error updating user ban status',
+      error: { code: error.code || 'INTERNAL_ERROR', details: error.message },
+      requestId: req.id || undefined
     });
   }
 };
