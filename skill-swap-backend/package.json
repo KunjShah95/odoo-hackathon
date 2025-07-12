@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "setup-db": "node setup-db.js",
-    "test-setup": "node test-setup.js"
+    "test-setup": "node test-setup.js",
+    "test-jwt": "node test-jwt.js"
   },
   "keywords": [
     "skill-swap",

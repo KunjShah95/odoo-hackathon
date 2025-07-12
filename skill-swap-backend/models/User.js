@@ -39,14 +39,14 @@ const User = sequelize.define('User', {
             isUrl: true
         }
     },
-  skillsOffered: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-  skillsWanted: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
+    skillsOffered: {
+        type: DataTypes.JSON,
+        defaultValue: []
+    },
+    skillsWanted: {
+        type: DataTypes.JSON,
+        defaultValue: []
+    },
     availability: {
         type: DataTypes.STRING,
         allowNull: true

@@ -45,11 +45,11 @@ async function setupDatabase() {
 
     } catch (error) {
         console.error('❌ Database setup failed:', error);
-    console.log('\n🔧 Common solutions:');
-    console.log('1. Make sure MySQL is running');
-    console.log('2. Check database credentials in .env file');
-    console.log('3. Ensure database exists: CREATE DATABASE skill_swap_db;');
-    console.log('4. See MYSQL-SETUP.md for installation guide');
+        console.log('\n🔧 Common solutions:');
+        console.log('1. Make sure MySQL is running');
+        console.log('2. Check database credentials in .env file');
+        console.log('3. Ensure database exists: CREATE DATABASE skill_swap_db;');
+        console.log('4. See MYSQL-SETUP.md for installation guide');
     } finally {
         await sequelize.close();
     }

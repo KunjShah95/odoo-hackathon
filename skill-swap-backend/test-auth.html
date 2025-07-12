@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skill Swap JWT Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .hidden {
+            display: none;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .success {
+            color: green;
+            background-color: #d4edda;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .error {
+            color: red;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .token-display {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            word-break: break-all;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        .user-info {
+            background-color: #e8f4fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Skill Swap JWT Authentication Test</h1>
+        <p>This page helps you test JWT authentication with your Skill Swap backend.</p>
+        
+        <!-- Server Status -->
+        <div class="section">
+            <h2>📡 Server Status</h2>
+            <button onclick="checkServer()">Check Server</button>
+            <div id="server-status"></div>
+        </div>
+
+        <!-- Registration -->
+        <div class="section" id="register-section">
+            <h2>📝 Register New User</h2>
+            <input type="text" id="reg-name" placeholder="Full Name" required>
+            <input type="email" id="reg-email" placeholder="Email" required>
+            <input type="password" id="reg-password" placeholder="Password" required>
+            <br>
+            <button onclick="register()">Register</button>
+            <div id="register-result"></div>
+        </div>
+
+        <!-- Login -->
+        <div class="section" id="login-section">
+            <h2>🔑 Login</h2>
+            <input type="email" id="login-email" placeholder="Email" required>
+            <input type="password" id="login-password" placeholder="Password" required>
+            <br>
+            <button onclick="login()">Login</button>
+            <div id="login-result"></div>
+        </div>
+
+        <!-- Authenticated Section -->
+        <div class="section hidden" id="auth-section">
+            <h2>✅ Authenticated User</h2>
+            <div id="user-info" class="user-info"></div>
+            
+            <h3>JWT Token:</h3>
+            <div id="token-display" class="token-display"></div>
+            
+            <button onclick="getProfile()">Get My Profile</button>
+            <button onclick="getUsers()">Browse Users</button>
+            <button onclick="logout()">Logout</button>
+            
+            <div id="auth-results"></div>
+        </div>
+
+        <!-- API Test Results -->
+        <div class="section">
+            <h2>🧪 API Test Results</h2>
+            <div id="api-results"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let authToken = localStorage.getItem('authToken');
+        
+        // Initialize page
+        window.onload = function() {
+            if (authToken) {
+                showAuthSection();
+                displayToken();
+            }
+        };
+
+        async function checkServer() {
+            try {
+                const response = await fetch('http://localhost:5000/health');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('server-status').innerHTML = 
+                        `<div class="success">✅ Server is running! Environment: ${data.environment}</div>`;
+                } else {
+                    throw new Error('Server responded with error');
+                }
+            } catch (error) {
+                document.getElementById('server-status').innerHTML = 
+                    `<div class="error">❌ Server not running. Make sure to start it with: npm run dev</div>`;
+            }
+        }
+
+        async function register() {
+            const name = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+
+            if (!name || !email || !password) {
+                showResult('register-result', 'Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        password,
+                        skillsOffered: ['JavaScript', 'React'],
+                        skillsWanted: ['Python', 'Django']
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    authToken = data.data.token;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                    
+                    showResult('register-result', `✅ Registration successful! Welcome ${data.data.user.name}`, 'success');
+                    showAuthSection();
+                    displayToken();
+                } else {
+                    showResult('register-result', `❌ Registration failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('register-result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            if (!email || !password) {
+                showResult('login-result', 'Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    authToken = data.data.token;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                    
+                    showResult('login-result', `✅ Login successful! Welcome back ${data.data.user.name}`, 'success');
+                    showAuthSection();
+                    displayToken();
+                } else {
+                    showResult('login-result', `❌ Login failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('login-result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function getProfile() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const user = data.data.user;
+                    document.getElementById('user-info').innerHTML = `
+                        <h4>👤 User Profile</h4>
+                        <p><strong>Name:</strong> ${user.name}</p>
+                        <p><strong>Email:</strong> ${user.email}</p>
+                        <p><strong>Skills Offered:</strong> ${user.skillsOffered?.join(', ') || 'None'}</p>
+                        <p><strong>Skills Wanted:</strong> ${user.skillsWanted?.join(', ') || 'None'}</p>
+                        <p><strong>Public Profile:</strong> ${user.isPublic ? 'Yes' : 'No'}</p>
+                        <p><strong>Rating:</strong> ${user.rating}/5 (${user.totalRatings} ratings)</p>
+                    `;
+                    showResult('auth-results', '✅ Profile loaded successfully!', 'success');
+                } else {
+                    showResult('auth-results', `❌ Failed to get profile: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('auth-results', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function getUsers() {
+            try {
+                const response = await fetch(`${API_BASE}/users?limit=5`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const usersHtml = data.data.users.map(user => `
+                        <div style="border: 1px solid #ddd; padding: 10px; margin: 5px; border-radius: 5px;">
+                            <strong>${user.name}</strong> (${user.email})<br>
+                            Skills: ${user.skillsOffered?.join(', ') || 'None'}<br>
+                            Rating: ${user.rating}/5
+                        </div>
+                    `).join('');
+                    
+                    showResult('auth-results', `✅ Found ${data.data.users.length} users:<br>${usersHtml}`, 'success');
+                } else {
+                    showResult('auth-results', `❌ Failed to get users: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('auth-results', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            authToken = null;
+            
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('register-section').classList.remove('hidden');
+            document.getElementById('login-section').classList.remove('hidden');
+            
+            showResult('api-results', '✅ Logged out successfully!', 'success');
+        }
+
+        function showAuthSection() {
+            document.getElementById('auth-section').classList.remove('hidden');
+            document.getElementById('register-section').classList.add('hidden');
+            document.getElementById('login-section').classList.add('hidden');
+        }
+
+        function displayToken() {
+            if (authToken) {
+                const tokenParts = authToken.split('.');
+                document.getElementById('token-display').innerHTML = `
+                    <strong>Header:</strong> ${tokenParts[0]}<br>
+                    <strong>Payload:</strong> ${tokenParts[1]}<br>
+                    <strong>Signature:</strong> ${tokenParts[2].substring(0, 20)}...<br>
+                    <small>Length: ${authToken.length} characters</small>
+                `;
+            }
+        }
+
+        function showResult(elementId, message, type) {
+            document.getElementById(elementId).innerHTML = 
+                `<div class="${type}">${message}</div>`;
+        }
+
+        // Auto-check server on load
+        checkServer();
+    </script>
+</body>
+</html>
