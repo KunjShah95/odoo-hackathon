@@ -1,3 +1,4 @@
+// Swap model removed. Use Supabase client queries instead.
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 

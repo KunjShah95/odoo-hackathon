@@ -1,3 +1,4 @@
+// Feedback model removed. Use Supabase client queries instead.
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
@@ -67,4 +68,4 @@ const Feedback = sequelize.define('Feedback', {
     ]
 });
 
-module.exports = Feedback;
+// Feedback model removed in favor of Supabase client queries

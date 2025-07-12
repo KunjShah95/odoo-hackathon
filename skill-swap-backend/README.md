@@ -9,14 +9,14 @@ A robust backend API for the Skill Swap Platform built with Node.js, Express, an
 - **Feedback System**: Rate and review completed swaps
 - **Admin Panel**: User moderation, analytics, and platform management
 - **Notifications**: Real-time updates for user activities
-- **Security**: JWT authentication, rate limiting, input validation
+- **Security**: Supabase authentication, rate limiting, input validation
 
 ## Tech Stack
 
 - **Runtime**: Node.js
 - **Framework**: Express.js
 - **Database**: MySQL with Sequelize ORM
-- **Authentication**: JWT tokens
+- **Authentication**: Supabase Auth
 - **Security**: Helmet, CORS, Rate limiting
 - **Validation**: Sequelize validators
 
@@ -76,8 +76,9 @@ skill-swap-backend/
    DB_USER=root
    DB_PASSWORD=your_mysql_password
    
-   # JWT
-   JWT_SECRET=your_jwt_secret_key
+   # Supabase
+   SUPABASE_URL=your_supabase_url
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
    
    # Admin
    ADMIN_EMAIL=admin@example.com
@@ -103,8 +104,8 @@ skill-swap-backend/
 ## API Endpoints
 
 ### Authentication (`/api/auth`)
-- `POST /register` - Register new user
-- `POST /login` - User login
+- `POST /register` - Register new user (via Supabase)
+- `POST /login` - User login (via Supabase)
 - `GET /profile` - Get current user profile
 - `PUT /profile` - Update user profile
 - `PUT /change-password` - Change password
@@ -177,7 +178,7 @@ skill-swap-backend/
 
 ## Security Features
 
-- **JWT Authentication**: Secure token-based authentication
+- **Supabase Authentication**: Secure token-based authentication
 - **Password Hashing**: bcryptjs for password security
 - **Rate Limiting**: Express-rate-limit for API protection
 - **CORS**: Cross-origin resource sharing configuration
@@ -208,7 +209,8 @@ npm run dev
 | DB_NAME | Database name | Yes |
 | DB_USER | Database user | Yes |
 | DB_PASSWORD | Database password | Yes |
-| JWT_SECRET | JWT signing secret | Yes |
+| SUPABASE_URL | Supabase project URL | Yes |
+| SUPABASE_SERVICE_ROLE_KEY | Supabase service role key | Yes |
 | ADMIN_EMAIL | Admin user email | No |
 | ADMIN_PASSWORD | Admin user password | No |
 | FRONTEND_URL | Frontend URL for CORS | No |

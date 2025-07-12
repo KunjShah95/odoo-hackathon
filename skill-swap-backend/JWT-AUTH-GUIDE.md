@@ -325,16 +325,10 @@ curl -X GET http://localhost:5000/api/auth/profile \
 - Verify JWT_SECRET is set in .env
 - Ensure token format: `Bearer <token>`
 
-### **2. "Access token required"**
-- Make sure Authorization header is included
 - Format: `Authorization: Bearer <your-token>`
 
-### **3. "Token expired"**
-- User needs to login again
 - Implement token refresh logic
 
-### **4. CORS Issues**
-Your backend already has CORS configured for `http://localhost:3000`
 
 ## 🎯 **Next Steps**
 
@@ -350,17 +344,6 @@ Your backend already has CORS configured for `http://localhost:3000`
 - `POST /api/auth/register` - Register
 - `POST /api/auth/login` - Login
 - `GET /api/users` - Browse public profiles
-- `GET /api/users/:id` - View public profile
-
-**Protected (Auth Required):**
-- `GET /api/auth/profile` - Get current user
 - `PUT /api/auth/profile` - Update profile
 - `POST /api/swaps` - Create swap request
-- `GET /api/swaps/my-swaps` - Get user's swaps
-- `POST /api/feedback` - Leave feedback
-
-**Admin Only:**
-- `GET /api/admin/dashboard` - Admin stats
 - `PUT /api/users/:id/ban` - Ban users
-
-Your JWT authentication is fully working! 🎉
